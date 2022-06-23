@@ -2,6 +2,7 @@ namespace Hashnode {
     public class Client {
         public string endpoint = "https://api.hashnode.com/";
         private string? authenticated_user;
+        private string? authenticated_domain;
         private string? publication_id;
 
         public Client () {
@@ -70,13 +71,23 @@ namespace Hashnode {
                     as HashNodeResponse;
 
                 debug ("Deserialization was: %s", response != null ? "successful" : "failed");
+                warning ("Got: %u, %s", make_post.response_code, make_post.response_str);
 
                 if (response != null) {
                     if (response.data != null && response.data.createPublicationStory != null) {
                         published_post = response.data.createPublicationStory.success;
-                        url = "https://" + response.data.createPublicationStory.post.publication.domain + "/" + response.data.createPublicationStory.post.slug;
+                        if (authenticated_domain != null && authenticated_domain != "") {
+                            url = "https://" + authenticated_domain + "/" + response.data.createPublicationStory.post.slug;
+                        } else {
+                            url = "https://" + response.data.createPublicationStory.post.publication.domain + "/" + response.data.createPublicationStory.post.slug;
+                        }
                         id = response.data.createPublicationStory.post.hashnodeId;
                     }
+                }
+
+                if (!published_post) {
+                    warning ("Sent: %s", request_body);
+                    warning ("Got: %u, %s", make_post.response_code, make_post.response_str);
                 }
             } catch (Error e) {
                 warning ("Unable to publish post: %s", e.message);
@@ -91,7 +102,7 @@ namespace Hashnode {
         {
             // There's no way to validate authentication without
             // trying to do something on the user's behalf.
-            publication_id = publication;
+            publication_id = get_publication_id (publication);
             authenticated_user = pat;
 
             return true;
@@ -105,6 +116,7 @@ namespace Hashnode {
                 out domain))
             {
                 publication_id = username;
+                authenticated_domain = domain;
             }
 
             return publication_id;
