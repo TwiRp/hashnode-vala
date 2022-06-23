@@ -60,8 +60,6 @@ namespace Hashnode {
                 return false;
             }
 
-            warning ("Got: %u, %s", make_post.response_code, make_post.response_str);
-
             try {
                 Json.Parser parser = new Json.Parser ();
                 parser.load_from_data (make_post.response_str);
@@ -71,7 +69,7 @@ namespace Hashnode {
                     data)
                     as HashNodeResponse;
 
-                warning ("Deserialization was: %s", response != null ? "successful" : "failed");
+                debug ("Deserialization was: %s", response != null ? "successful" : "failed");
 
                 if (response != null) {
                     published_post = response.data.createPublicationStory.success;
@@ -96,6 +94,48 @@ namespace Hashnode {
 
             return true;
         }
+
+        public string get_publication_id (string username) {
+            string publication_id = username;
+            HashnodePost the_query = new HashnodePost ();
+            the_query.query = "query user { user(username: \"%s\"){ blogHandle publicationDomain publication { _id domain } } }".printf (username);
+
+            Json.Node root = Json.gobject_serialize (the_query);
+            Json.Generator generate = new Json.Generator ();
+            generate.set_root (root);
+            generate.set_pretty (false);
+            // One day I'll find out how to do underscores...
+            string request_body = generate.to_data (null).replace ("\"hashnodeId\"", "\"_id\"");
+
+            WebCall make_post = new WebCall (endpoint, "");
+            make_post.set_post ();
+            make_post.set_body (request_body);
+
+            if (!make_post.perform_call ()) {
+                warning ("Error: %u, %s", make_post.response_code, make_post.response_str);
+                return publication_id;
+            }
+
+            try {
+                Json.Parser parser = new Json.Parser ();
+                parser.load_from_data (make_post.response_str);
+                Json.Node data = parser.get_root ();
+                HashNodeResponse response = Json.gobject_deserialize (
+                    typeof (HashNodeResponse),
+                    data)
+                    as HashNodeResponse;
+
+                if (response != null) {
+                    if (response.data.user.publication.hashnodeId != null) {
+                        publication_id = response.data.user.publication.hashnodeId;
+                    }
+                }
+            } catch (Error e) {
+                warning ("Unable to publish post: %s", e.message);
+            }
+
+            return publication_id;
+        }
     }
 
     public class Response : GLib.Object, Json.Serializable {
@@ -107,6 +147,13 @@ namespace Hashnode {
 
     public class HashNodeData : Response {
         public CreatePostOutput createPublicationStory { get; set; }
+        public UserOutput user { get; set; }
+    }
+
+    public class UserOutput : Response {
+        public string blogHandle { get; set; }
+        public string publicationDomain { get; set; }
+        public PublicationResponse publication { get; set; }
     }
 
     public class CreatePostOutput : Response {
