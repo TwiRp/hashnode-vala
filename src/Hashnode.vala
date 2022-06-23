@@ -97,6 +97,26 @@ namespace Hashnode {
 
         public string get_publication_id (string username) {
             string publication_id = username;
+            string domain = "";
+            if (!get_user_information (username,
+                out publication_id,
+                out domain))
+            {
+                publication_id = username;
+            }
+
+            return publication_id;
+        }
+
+        public bool get_user_information (
+            string username,
+            out string publication_id,
+            out string domain
+            )
+        {
+            publication_id = username;
+            domain = "";
+
             HashnodePost the_query = new HashnodePost ();
             the_query.query = "query user { user(username: \"%s\"){ blogHandle publicationDomain publication { _id domain } } }".printf (username);
 
@@ -113,7 +133,7 @@ namespace Hashnode {
 
             if (!make_post.perform_call ()) {
                 warning ("Error: %u, %s", make_post.response_code, make_post.response_str);
-                return publication_id;
+                return false;
             }
 
             try {
@@ -128,13 +148,16 @@ namespace Hashnode {
                 if (response != null) {
                     if (response.data.user.publication.hashnodeId != null) {
                         publication_id = response.data.user.publication.hashnodeId;
+                        domain = response.data.user.publicationDomain;
+
+                        return true;
                     }
                 }
             } catch (Error e) {
                 warning ("Unable to publish post: %s", e.message);
             }
 
-            return publication_id;
+            return false;
         }
     }
 
