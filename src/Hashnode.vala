@@ -71,7 +71,6 @@ namespace Hashnode {
                     as HashNodeResponse;
 
                 debug ("Deserialization was: %s", response != null ? "successful" : "failed");
-                warning ("Got: %u, %s", make_post.response_code, make_post.response_str);
 
                 if (response != null) {
                     if (response.data != null && response.data.createPublicationStory != null) {
