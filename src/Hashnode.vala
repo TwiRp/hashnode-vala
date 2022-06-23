@@ -72,9 +72,11 @@ namespace Hashnode {
                 debug ("Deserialization was: %s", response != null ? "successful" : "failed");
 
                 if (response != null) {
-                    published_post = response.data.createPublicationStory.success;
-                    url = "https://" + response.data.createPublicationStory.post.publication.domain + "/" + response.data.createPublicationStory.post.slug;
-                    id = response.data.createPublicationStory.post.hashnodeId;
+                    if (response.data != null && response.data.createPublicationStory != null) {
+                        published_post = response.data.createPublicationStory.success;
+                        url = "https://" + response.data.createPublicationStory.post.publication.domain + "/" + response.data.createPublicationStory.post.slug;
+                        id = response.data.createPublicationStory.post.hashnodeId;
+                    }
                 }
             } catch (Error e) {
                 warning ("Unable to publish post: %s", e.message);
