@@ -8,6 +8,8 @@ Unofficial [Hashnode](https://hashnode.com) API client library for Vala. Still a
 
 I recommend including `hashnode-vala` as a git submodule and adding `hashnode-vala/src/Hashnode.vala` to your sources list. This will avoid packaging conflicts and remote build system issues until I learn a better way to suggest this.
 
+For libsoup3, use `hashnode-vala/src/Hashnode3.vala`.
+
 ### Requirements
 
 ```

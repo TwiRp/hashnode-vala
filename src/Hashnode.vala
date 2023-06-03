@@ -270,7 +270,7 @@ namespace Hashnode {
         }
 
         public void set_multipart (Soup.Multipart multipart) {
-            message = Soup.Form.request_new_from_multipart (url, multipart);
+            message = new Soup.Message.from_multipart (url, multipart);
             is_mime = true;
         }
 
@@ -297,25 +297,31 @@ namespace Hashnode {
 
             add_header ("User-Agent", "hashnode-vala/0.1");
             if (body != "") {
-                message.set_request ("application/json", Soup.MemoryUse.COPY, body.data);
+                Bytes body_bytes = new Bytes.static (body.data);
+                message.set_request_body_from_bytes ("application/json", body_bytes);
             } else {
                 if (!is_mime) {
                     add_header ("Content-Type", "application/json");
                 }
             }
 
-            session.queue_message (message, (sess, mess) => {
-                response_str = (string) mess.response_body.flatten ().data;
-                response_str = response_str.replace ("\"_id\"", "\"hashnodeId\"");
-                response_code = mess.status_code;
+            session.send_and_read_async.begin (message, 0, null, (obj, res) => {
+                try {
+                    var response = session.send_and_read_async.end (res);
+                    response_str = response != null ? (string)response.get_data () : "";
+                    response_str = response_str.replace ("\"_id\"", "\"hashnodeId\"");
+                    response_code = message.status_code;
 
-                if (response_str != null && response_str != "") {
-                    debug ("Non-empty body");
-                }
+                    if (response_str != null && response_str != "") {
+                        debug ("Non-empty body");
+                    }
 
-                if (response_code >= 200 && response_code <= 250) {
-                    success = true;
-                    debug ("Success HTTP code");
+                    if (response_code >= 200 && response_code <= 250) {
+                        success = true;
+                        debug ("Success HTTP code");
+                    }
+                } catch (Error e) {
+                    warning ("Error sending request: %s", e.message);
                 }
                 loop.quit ();
             });
