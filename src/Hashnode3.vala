@@ -135,6 +135,168 @@ namespace Hashnode {
                 publishAs);
         }
 
+        public bool create_draft (
+            out string draft_id,
+            string target_publication_id,
+            string content,
+            string title,
+            string main_image = "",
+            string publishAs = "")
+        {
+            string auth_token = authenticated_user;
+            draft_id = "";
+            bool draft_created = false;
+
+            if (auth_token == "" || target_publication_id == "") {
+                return false;
+            }
+
+            PublishPostInput new_post = new PublishPostInput ();
+            new_post.contentMarkdown = content;
+            new_post.title = title;
+            new_post.publicationId = target_publication_id;
+            new_post.tags = new PublishPostTagInput[0];
+            if (publishAs != "") {
+                new_post.publishAs = publishAs;
+            }
+            if (main_image != "") {
+                new_post.coverImageOptions = new CoverImageOptionsInput ();
+                new_post.coverImageOptions.url = main_image;
+            }
+
+            HashnodePost the_post = new HashnodePost ();
+            HashnodeVariables the_vars = new HashnodeVariables ();
+            the_post.query = "mutation createDraft($input: CreateDraftInput!){ createDraft(input: $input){ draft { id } } }";
+            the_vars.input = new_post;
+            the_post.variables = the_vars;
+
+            Json.Node root = Json.gobject_serialize (the_post);
+            Json.Generator generate = new Json.Generator ();
+            generate.set_root (root);
+            generate.set_pretty (false);
+            string request_body = generate.to_data (null);
+
+            WebCall make_post = new WebCall (endpoint, "");
+            make_post.set_post ();
+            make_post.set_body (request_body);
+            if (auth_token != "") {
+                make_post.add_header ("Authorization", auth_token);
+            }
+
+            if (!make_post.perform_call ()) {
+                warning ("Error: %u, %s", make_post.response_code, make_post.response_str);
+                return false;
+            }
+
+            try {
+                Json.Parser parser = new Json.Parser ();
+                parser.load_from_data (make_post.response_str);
+                Json.Node data = parser.get_root ();
+                HashNodeResponse response = Json.gobject_deserialize (
+                    typeof (HashNodeResponse),
+                    data)
+                    as HashNodeResponse;
+
+                debug ("Deserialization was: %s", response != null ? "successful" : "failed");
+
+                if (response != null) {
+                    if (response.data != null && response.data.createDraft != null) {
+                        var draft = response.data.createDraft.draft;
+                        if (draft != null && draft.id != null && draft.id != "") {
+                            draft_created = true;
+                            draft_id = draft.id;
+                        }
+                    }
+                }
+
+                if (!draft_created) {
+                    warning ("Sent: %s", request_body);
+                    warning ("Got: %u, %s", make_post.response_code, make_post.response_str);
+                }
+            } catch (Error e) {
+                warning ("Unable to create draft: %s", e.message);
+            }
+
+            return draft_created;
+        }
+
+        public bool publish_draft (
+            out string url,
+            out string id,
+            string draft_id)
+        {
+            string auth_token = authenticated_user;
+            url = "";
+            id = "";
+            bool published_draft = false;
+
+            if (auth_token == "" || draft_id == "") {
+                return false;
+            }
+
+            string query = "mutation publishDraft($input: PublishDraftInput!){ publishDraft(input: $input){ post { id slug url publication { domainInfo { domain { host } } } } } }";
+            // Escape quotes in query for JSON
+            string escaped_query = query.replace ("\\", "\\\\").replace ("\"", "\\\"");
+            string request_body = "{\"query\":\"" + escaped_query + "\",\"variables\":{\"input\":{\"draftId\":\"" + draft_id + "\"}}}";
+
+            WebCall make_post = new WebCall (endpoint, "");
+            make_post.set_post ();
+            make_post.set_body (request_body);
+            if (auth_token != "") {
+                make_post.add_header ("Authorization", auth_token);
+            }
+
+            if (!make_post.perform_call ()) {
+                warning ("Error: %u, %s", make_post.response_code, make_post.response_str);
+                return false;
+            }
+
+            try {
+                Json.Parser parser = new Json.Parser ();
+                parser.load_from_data (make_post.response_str);
+                Json.Node data = parser.get_root ();
+                HashNodeResponse response = Json.gobject_deserialize (
+                    typeof (HashNodeResponse),
+                    data)
+                    as HashNodeResponse;
+
+                debug ("Deserialization was: %s", response != null ? "successful" : "failed");
+
+                if (response != null) {
+                    if (response.data != null && response.data.publishDraft != null) {
+                        var post = response.data.publishDraft.post;
+                        if (post != null) {
+                            published_draft = true;
+                            if (post.url != null && post.url != "") {
+                                url = post.url;
+                            } else if (authenticated_domain != null && authenticated_domain != "") {
+                                url = "https://" + authenticated_domain + "/" + post.slug;
+                            } else if (post.publication != null && post.publication.domainInfo != null
+                                && post.publication.domainInfo.domain != null
+                                && post.publication.domainInfo.domain.host != null
+                                && post.publication.domainInfo.domain.host != "") {
+                                url = "https://" + post.publication.domainInfo.domain.host + "/" + post.slug;
+                            }
+                            if (post.id != null && post.id != "") {
+                                id = post.id;
+                            } else {
+                                id = post.hashnodeId;
+                            }
+                        }
+                    }
+                }
+
+                if (!published_draft) {
+                    warning ("Sent: %s", request_body);
+                    warning ("Got: %u, %s", make_post.response_code, make_post.response_str);
+                }
+            } catch (Error e) {
+                warning ("Unable to publish draft: %s", e.message);
+            }
+
+            return published_draft;
+        }
+
         public bool authenticate (
             string publication,
             string pat) throws GLib.Error
@@ -372,8 +534,24 @@ namespace Hashnode {
     public class HashNodeData : Response {
         public CreatePostOutput createPublicationStory { get; set; }
         public PublishPostPayload publishPost { get; set; }
+        public CreateDraftPayload createDraft { get; set; }
+        public PublishDraftPayload publishDraft { get; set; }
         public UserOutput user { get; set; }
         public MeOutput me { get; set; }
+    }
+
+    public class CreateDraftPayload : Response {
+        public DraftResponse draft { get; set; }
+    }
+
+    public class PublishDraftPayload : Response {
+        public PostResponse post { get; set; }
+    }
+
+    public class DraftResponse : Response {
+        public string id { get; set; }
+        public string slug { get; set; }
+        public string title { get; set; }
     }
 
     public class PublishPostPayload : Response {
@@ -484,6 +662,10 @@ namespace Hashnode {
 
     public class BannerImageOptionsInput : GLib.Object, Json.Serializable {
         public string? bannerImageURL { get; set; }
+    }
+
+    public class PublishDraftInputPayload : GLib.Object, Json.Serializable {
+        public string draftId { get; set; }
     }
 
     public class CreateStoryInput : GLib.Object, Json.Serializable {
