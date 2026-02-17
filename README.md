@@ -70,3 +70,30 @@ Hello from [ThiefMD](https://thiefmd.com)!",
     print ("Made post: %s", url);
 }
 ```
+
+## Get Accessible Publications
+
+```vala
+GLib.List<Hashnode.PublicationResponse> publications = new GLib.List<Hashnode.PublicationResponse> ();
+if (client.get_user_publications (ref publications)) {
+    foreach (var publication in publications) {
+        print ("Publication: %s (%s)\n", publication.title, publication.hashnodeId);
+    }
+}
+```
+
+## Publish to a Specific Publication
+
+```vala
+string url;
+string id;
+if (client.publish_publication_post (
+    out url,
+    out id,
+    "publication-id",
+    "# Hello Hashnode!\n\nHello from [ThiefMD](https://thiefmd.com)!",
+    "Hello Hashnode!"))
+{
+    print ("Made post: %s", url);
+}
+```
