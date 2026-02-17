@@ -5,7 +5,7 @@ else
 endif
 
 libhashnode_sources = [
-  'Hashnode.vala'
+  'Hashnode3.vala'
 ]
 
 

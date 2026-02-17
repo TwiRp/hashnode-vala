@@ -29,19 +29,22 @@ namespace Hashnode {
                 return false;
             }
 
-            CreateStoryInput new_post = new CreateStoryInput ();
+            PublishPostInput new_post = new PublishPostInput ();
             new_post.contentMarkdown = content;
             new_post.title = title;
+            new_post.publicationId = target_publication_id;
+            new_post.tags = new PublishPostTagInput[0];
             if (publishAs != "") {
                 new_post.publishAs = publishAs;
             }
             if (main_image != "") {
-                new_post.coverImageURL = main_image;
+                new_post.coverImageOptions = new CoverImageOptionsInput ();
+                new_post.coverImageOptions.url = main_image;
             }
 
             HashnodePost the_post = new HashnodePost ();
             HashnodeVariables the_vars = new HashnodeVariables ();
-            the_post.query = "mutation createPublicationStory($input: CreateStoryInput!){ createPublicationStory(publicationId: \"%s\", input: $input){ code success message post { _id slug publication { domain } } } }".printf (target_publication_id);
+            the_post.query = "mutation publishPost($input: PublishPostInput!){ publishPost(input: $input){ post { id slug url publication { url domainInfo { domain { host } } } } } }";
             the_vars.input = new_post;
             the_post.variables = the_vars;
 
@@ -49,8 +52,7 @@ namespace Hashnode {
             Json.Generator generate = new Json.Generator ();
             generate.set_root (root);
             generate.set_pretty (false);
-            // One day I'll find out how to do underscores...
-            string request_body = generate.to_data (null).replace ("\"hashnodeId\"", "\"_id\"").replace ("\"title\"", "\"tags\": [], \"title\"");
+            string request_body = generate.to_data (null);
 
             WebCall make_post = new WebCall (endpoint, "");
             make_post.set_post ();
@@ -76,14 +78,26 @@ namespace Hashnode {
                 debug ("Deserialization was: %s", response != null ? "successful" : "failed");
 
                 if (response != null) {
-                    if (response.data != null && response.data.createPublicationStory != null) {
-                        published_post = response.data.createPublicationStory.success;
-                        if (authenticated_domain != null && authenticated_domain != "") {
-                            url = "https://" + authenticated_domain + "/" + response.data.createPublicationStory.post.slug;
-                        } else {
-                            url = "https://" + response.data.createPublicationStory.post.publication.domain + "/" + response.data.createPublicationStory.post.slug;
+                    if (response.data != null && response.data.publishPost != null) {
+                        var post = response.data.publishPost.post;
+                        if (post != null) {
+                            published_post = true;
+                            if (post.url != null && post.url != "") {
+                                url = post.url;
+                            } else if (authenticated_domain != null && authenticated_domain != "") {
+                                url = "https://" + authenticated_domain + "/" + post.slug;
+                            } else if (post.publication != null && post.publication.domainInfo != null
+                                && post.publication.domainInfo.domain != null
+                                && post.publication.domainInfo.domain.host != null
+                                && post.publication.domainInfo.domain.host != "") {
+                                url = "https://" + post.publication.domainInfo.domain.host + "/" + post.slug;
+                            }
+                            if (post.id != null && post.id != "") {
+                                id = post.id;
+                            } else {
+                                id = post.hashnodeId;
+                            }
                         }
-                        id = response.data.createPublicationStory.post.hashnodeId;
                     }
                 }
 
